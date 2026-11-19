@@ -1,0 +1,142 @@
+{
+ "B001": [
+  {
+   "action": "rebuild_full",
+   "reason": "LoD1 was too low; try a flat roof at the DSM median",
+   "target": null,
+   "geometry": {
+    "parts": [
+     {
+      "name": "main",
+      "footprint": null,
+      "eave_height": 8.5,
+      "roof": {
+       "type": "flat",
+       "rise": 0.0,
+       "ridge_axis": null,
+       "upslope_azimuth_deg": null
+      }
+     }
+    ]
+   },
+   "diagnosis": null
+  },
+  {
+   "action": "fix_part",
+   "reason": "error is largest along the centre line, so the roof is a gable",
+   "target": "main",
+   "geometry": {
+    "parts": [
+     {
+      "name": "main",
+      "footprint": null,
+      "eave_height": 6.0,
+      "roof": {
+       "type": "gable",
+       "rise": 5.0,
+       "ridge_axis": "long",
+       "upslope_azimuth_deg": null
+      }
+     }
+    ]
+   },
+   "diagnosis": null
+  }
+ ],
+ "B002": [
+  "{\"action\": \"rebuild_full\", \"reason\": \"truncated output\", \"geometry\": {\"parts\": [",
+  {
+   "action": "rebuild_full",
+   "reason": "flat roof at DSM median",
+   "target": null,
+   "geometry": {
+    "parts": [
+     {
+      "name": "main",
+      "footprint": null,
+      "eave_height": 4.0,
+      "roof": {
+       "type": "flat",
+       "rise": 0.0,
+       "ridge_axis": null,
+       "upslope_azimuth_deg": null
+      }
+     }
+    ]
+   },
+   "diagnosis": null
+  },
+  {
+   "action": "rebuild_full",
+   "reason": "flat roof at DSM mean",
+   "target": null,
+   "geometry": {
+    "parts": [
+     {
+      "name": "main",
+      "footprint": null,
+      "eave_height": 6.0,
+      "roof": {
+       "type": "flat",
+       "rise": 0.0,
+       "ridge_axis": null,
+       "upslope_azimuth_deg": null
+      }
+     }
+    ]
+   },
+   "diagnosis": null
+  },
+  {
+   "action": "fix_part",
+   "reason": "try a gable",
+   "target": "main",
+   "geometry": {
+    "parts": [
+     {
+      "name": "main",
+      "footprint": null,
+      "eave_height": 4.0,
+      "roof": {
+       "type": "gable",
+       "rise": 6.0,
+       "ridge_axis": "long",
+       "upslope_azimuth_deg": null
+      }
+     }
+    ]
+   },
+   "diagnosis": null
+  },
+  {
+   "action": "fix_part",
+   "reason": "try a shed rising to the north",
+   "target": "main",
+   "geometry": {
+    "parts": [
+     {
+      "name": "main",
+      "footprint": null,
+      "eave_height": 4.0,
+      "roof": {
+       "type": "shed",
+       "rise": 6.0,
+       "ridge_axis": null,
+       "upslope_azimuth_deg": 0.0
+      }
+     }
+    ]
+   },
+   "diagnosis": null
+  }
+ ],
+ "B003": [
+  {
+   "action": "give_up",
+   "reason": "DSM heights range 2-18 m with no planar structure",
+   "target": null,
+   "geometry": null,
+   "diagnosis": "DSM over the footprint looks like tree canopy, not a roof: heights are scattered between 2 and 18 m with no consistent plane. No roof can be fitted from this data; a human should check the roof image or field data."
+  }
+ ]
+}
