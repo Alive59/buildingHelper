@@ -91,6 +91,10 @@ def test_demo_queue_end_to_end(tmp_path):
     assert (out["B001"]["outcome"], out["B001"]["steps"]) == ("accepted", 2)
     assert (out["B002"]["outcome"], out["B002"]["stopped_by"], out["B002"]["steps"]) == ("human_review", "budget", 5)
     assert (out["B003"]["outcome"], out["B003"]["stopped_by"]) == ("human_review", "give_up")
+    assert out["B002"]["best_step"] == 5 and Path(out["B002"]["best_mesh_path"]).exists()
+    last_prompt = json.loads((tmp_path / "B002/steps.jsonl").read_text().splitlines()[-1])["prompt"][1]["content"]
+    assert "_stub_reference" not in last_prompt and "DSM: not available" in last_prompt
+    assert "vs previous; best so far 0.24 at step 2]" in last_prompt
     assert summary["rescue_rate"] == pytest.approx(1 / 3, abs=1e-3)
     steps = [json.loads(line) for line in (tmp_path / "B002/steps.jsonl").read_text().splitlines()]
     assert len(steps) == 5 and steps[0]["error"] and all("prompt" in s and "raw_output" in s for s in steps)
@@ -114,12 +118,14 @@ def test_history_digest_is_capped(tmp_path):
 def test_gate_is_topology_plus_similarity_and_hints_give_direction():
     truth = build({"parts": [part("flat", eave=9.0)]}, RECT, 0.0)
     b = {"id": "X", "footprint": RECT, "ground_z": 0.0,
-         "dsm_samples": [[x + 0.5, y + 0.5, 9.0] for x in range(12) for y in range(8)]}
+         "_stub_reference": [[x + 0.5, y + 0.5, 9.0] for x in range(12) for y in range(8)]}
     low = build({"parts": [part("flat", eave=5.0)]}, RECT, 0.0)
     report = StandInGate().evaluate(low, b)
     assert [c.name for c in report.checks] == ["faces", "watertight", "manifold", "brice"]
     assert failure_reasons(report) == ["BRICE 0.20 < 0.50 (similarity too low)"]
-    assert hints(low, b)[0].startswith("roof is 4.0 m lower than DSM on average")
+    assert hints(low, b) == []  # no 3D reference: nothing to hint from
+    assert hints(low, {**b, "dsm_samples": b["_stub_reference"]})[0].startswith(
+        "roof is 4.0 m lower than DSM on average")
     assert StandInGate().evaluate(truth, b).passed
-    assert not StandInGate().evaluate(truth, {**b, "dsm_samples": []}).passed  # no score, no accept
+    assert not StandInGate().evaluate(truth, {**b, "_stub_reference": []}).passed  # no score, no accept
     assert StandInGate(similarity=lambda m, bld: 0.9).evaluate(low, b).passed  # pluggable scorer

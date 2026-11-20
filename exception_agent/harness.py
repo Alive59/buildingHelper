@@ -67,6 +67,7 @@ class Harness:
 
         digest: list[str] = []
         last_spec = None
+        prev_score, best = None, None  # best = (score, step, mesh_path)
         deadline = start + self.budget.max_minutes * 60
         step = 0
         stop = "step budget exhausted"
@@ -119,14 +120,25 @@ class Harness:
             self._log(bdir, log, t0)
             if report.passed:
                 return finish("accepted", step, mesh_path=str(mesh_path))
+            # BRICE is the only signal about shape, so show the LLM how it moves.
+            score = next((c.value for c in report.checks if c.name == "brice"), None)
+            trend = ""
+            if score is not None:
+                if prev_score is not None:
+                    trend = f" [{score - prev_score:+.2f} vs previous; best so far {best[0]:.2f} at step {best[1]}]"
+                if best is None or score > best[0]:
+                    best = (score, step, str(mesh_path))
+                prev_score = score
             what = label + (f"({action['target']})" if label == "fix_part" else "")
             digest.append(f"- step {step}: {what} [{_brief(spec)}] -> FAIL: "
-                          + "; ".join(failure_reasons(report)) + _hint_text(step_hints))
+                          + "; ".join(failure_reasons(report)) + trend + _hint_text(step_hints))
 
         summary = (f"{stop} after {step} steps. Initial failures: "
                    f"{', '.join(failure_types) or 'not recorded'}. Agent steps:\n"
                    + ("\n".join(digest) or "- none"))
-        return finish("human_review", step, stopped_by="budget", summary=summary)
+        best_info = ({"best_score": best[0], "best_step": best[1], "best_mesh_path": best[2]}
+                     if best else {})
+        return finish("human_review", step, stopped_by="budget", summary=summary, **best_info)
 
     # --- helpers -------------------------------------------------------------
 

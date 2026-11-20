@@ -40,8 +40,9 @@ def dsm(truth, footprint, ground, noise=0.1, step=1.0):
 
 
 def building(bid, footprint, ground, samples, attempts):
-    return {"id": bid, "footprint": footprint, "ground_z": ground, "dsm_samples": samples,
-            "refs": {"lidar": f"data/lidar/{bid}.laz", "roof_image": f"data/roof/{bid}.png"},
+    # _stub_reference stands in for the roof image: only the placeholder scorer reads it.
+    return {"id": bid, "footprint": footprint, "ground_z": ground, "_stub_reference": samples,
+            "refs": {"roof_image": f"data/roof/{bid}.png"},
             "attempts": attempts}
 
 
@@ -63,7 +64,7 @@ queue = [
         {"route": "AR", "reasons": ["312 faces > 256"], "failed_checks": ["faces"]},
         {"route": "rule", "note": "plane fitting found no roof planes"},
         {"route": "LoD1", "reasons": ["BRICE 0.26 < 0.50 (similarity too low)"], "failed_checks": ["brice"]}]),
-    # DSM is tree canopy, not roof: the right answer is to give up.
+    # Nothing fits (e.g. roof hidden by trees in the image): the score never moves, so give up.
     building("B003", big, 0.0, [[x + 0.5, y + 0.5, round(random.uniform(2, 18), 2)]
                                 for x in range(0, 20, 2) for y in range(0, 15, 2)], [
         {"route": "AR", "reasons": ["not manifold: 4 non-manifold edges (e.g. faces 12, 13, 14)"],
@@ -74,22 +75,24 @@ queue = [
 
 script = {
     "B001": [
-        act("rebuild_full", "LoD1 was too low; try a flat roof at the DSM median", [part("main", 8.5, "flat")]),
-        act("fix_part", "error is largest along the centre line, so the roof is a gable",
+        act("rebuild_full", "start from the simplest model: a flat roof", [part("main", 8.5, "flat")]),
+        act("fix_part", "flat scored 0.41; try a gable along the long side",
             [part("main", 6.0, "gable", 5.0, "long")], target="main"),
     ],
     "B002": [
         '{"action": "rebuild_full", "reason": "truncated output", "geometry": {"parts": [',
-        act("rebuild_full", "flat roof at DSM median", [part("main", 4.0, "flat")]),
-        act("rebuild_full", "flat roof at DSM mean", [part("main", 6.0, "flat")]),
+        act("rebuild_full", "start with a low flat roof", [part("main", 4.0, "flat")]),
+        act("rebuild_full", "raise the flat roof", [part("main", 6.0, "flat")]),
         act("fix_part", "try a gable", [part("main", 4.0, "gable", 6.0, "long")], target="main"),
         act("fix_part", "try a shed rising to the north", [part("main", 4.0, "shed", 6.0, az=0.0)], target="main"),
     ],
     "B003": [
-        act("give_up", "DSM heights range 2-18 m with no planar structure", diagnosis=(
-            "DSM over the footprint looks like tree canopy, not a roof: heights are scattered between "
-            "2 and 18 m with no consistent plane. No roof can be fitted from this data; a human should "
-            "check the roof image or field data.")),
+        act("rebuild_full", "start from the simplest model: a flat roof", [part("main", 9.0, "flat")]),
+        act("fix_part", "flat scored low; try a gable", [part("main", 7.0, "gable", 4.0, "long")], target="main"),
+        act("give_up", "BRICE stayed near 0.17 for both flat and gable", diagnosis=(
+            "BRICE does not respond to the roof type: flat and gable both score about 0.17. "
+            "The roof is probably not visible in the image (trees or shadow), or the footprint does "
+            "not match the image. A human should check the roof image and its alignment.")),
     ],
 }
 

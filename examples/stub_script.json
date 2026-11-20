@@ -2,7 +2,7 @@
  "B001": [
   {
    "action": "rebuild_full",
-   "reason": "LoD1 was too low; try a flat roof at the DSM median",
+   "reason": "start from the simplest model: a flat roof",
    "target": null,
    "geometry": {
     "parts": [
@@ -23,7 +23,7 @@
   },
   {
    "action": "fix_part",
-   "reason": "error is largest along the centre line, so the roof is a gable",
+   "reason": "flat scored 0.41; try a gable along the long side",
    "target": "main",
    "geometry": {
     "parts": [
@@ -47,7 +47,7 @@
   "{\"action\": \"rebuild_full\", \"reason\": \"truncated output\", \"geometry\": {\"parts\": [",
   {
    "action": "rebuild_full",
-   "reason": "flat roof at DSM median",
+   "reason": "start with a low flat roof",
    "target": null,
    "geometry": {
     "parts": [
@@ -68,7 +68,7 @@
   },
   {
    "action": "rebuild_full",
-   "reason": "flat roof at DSM mean",
+   "reason": "raise the flat roof",
    "target": null,
    "geometry": {
     "parts": [
@@ -132,11 +132,53 @@
  ],
  "B003": [
   {
+   "action": "rebuild_full",
+   "reason": "start from the simplest model: a flat roof",
+   "target": null,
+   "geometry": {
+    "parts": [
+     {
+      "name": "main",
+      "footprint": null,
+      "eave_height": 9.0,
+      "roof": {
+       "type": "flat",
+       "rise": 0.0,
+       "ridge_axis": null,
+       "upslope_azimuth_deg": null
+      }
+     }
+    ]
+   },
+   "diagnosis": null
+  },
+  {
+   "action": "fix_part",
+   "reason": "flat scored low; try a gable",
+   "target": "main",
+   "geometry": {
+    "parts": [
+     {
+      "name": "main",
+      "footprint": null,
+      "eave_height": 7.0,
+      "roof": {
+       "type": "gable",
+       "rise": 4.0,
+       "ridge_axis": "long",
+       "upslope_azimuth_deg": null
+      }
+     }
+    ]
+   },
+   "diagnosis": null
+  },
+  {
    "action": "give_up",
-   "reason": "DSM heights range 2-18 m with no planar structure",
+   "reason": "BRICE stayed near 0.17 for both flat and gable",
    "target": null,
    "geometry": null,
-   "diagnosis": "DSM over the footprint looks like tree canopy, not a roof: heights are scattered between 2 and 18 m with no consistent plane. No roof can be fitted from this data; a human should check the roof image or field data."
+   "diagnosis": "BRICE does not respond to the roof type: flat and gable both score about 0.17. The roof is probably not visible in the image (trees or shadow), or the footprint does not match the image. A human should check the roof image and its alignment."
   }
  ]
 }

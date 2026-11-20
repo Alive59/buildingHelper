@@ -30,7 +30,7 @@ server does not support JSON-schema output; the harness validates either way.
 | `actions.py` | action schema, validation, permission check, `fix_part` |
 | `builder.py` | parametric spec → closed mesh (flat / shed / gable / hip) |
 | `gate.py` | gate interface (topology + BRICE), stand-in gate, failure-reason formatter |
-| `diagnostics.py` | DSM and footprint hints for the LLM; not gate conditions |
+| `diagnostics.py` | placeholder scorer; optional DSM and footprint hints (not gate conditions) |
 | `prompt.py`, `guidance.md` | per-step prompt; edit `guidance.md` for the guidance |
 | `llm.py` | stub LLM and OpenAI-compatible client |
 | `config.py` | thresholds, budget, limits (frozen) |
@@ -38,7 +38,8 @@ server does not support JSON-schema output; the harness validates either way.
 ## Input and output
 
 Queue entry (`examples/queue/*.json`): `id`, `footprint` ([[x, y], …] in metres),
-`ground_z`, `dsm_samples` ([[x, y, z], …]), `refs` (file paths, passed as text),
+`ground_z`, `refs` (roof image path, passed as text), optional `dsm_samples`
+([[x, y, z], …], only where a 3D reference exists),
 `attempts` (per route: `reasons`, `failed_checks`, or a `mesh_path` to re-gate).
 
 Run directory: `<id>/steps.jsonl` (prompt, raw output, parsed action, mesh path,
@@ -51,8 +52,8 @@ Outcomes: `accepted`; `human_review` (`stopped_by` = `give_up` or `budget`);
 ## Placeholders to replace
 
 - **Gate:** topology (watertight, manifold, 256 faces) plus one similarity score.
-  The topology checks are real. The score is **not BRICE**: it is a DSM-agreement
-  proxy. Pass the real scorer as `StandInGate(similarity=...)`, or wrap the whole
+  The topology checks are real. The score is **not BRICE**: it compares the mesh
+  with a hidden `_stub_reference` height field in the demo entries. Pass the real scorer as `StandInGate(similarity=...)`, or wrap the whole
   pipeline gate in a class with `evaluate(mesh, building) -> GateReport`.
 - **Threshold:** `brice_min` in `config.py` is a guess.
 - **Guidance:** `guidance.md` has TBD sections for the guideline criteria.

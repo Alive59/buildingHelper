@@ -20,7 +20,7 @@ def system_prompt(thresholds: GateThresholds, guidance_path: Path = GUIDANCE_PAT
 def dsm_summary(building: dict, max_points: int = 16) -> str:
     samples = building.get("dsm_samples") or []
     if not samples:
-        return "no DSM samples available"
+        return "not available (no 3D reference for this building; heights cannot be measured)"
     g = building["ground_z"]
     h = sorted(z - g for _, _, z in samples)
     q = statistics.quantiles(h, n=10) if len(h) > 1 else [h[0]] * 9

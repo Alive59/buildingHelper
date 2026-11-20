@@ -11,7 +11,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Callable, Protocol
 
 from .config import GateThresholds
-from .diagnostics import dsm_proxy_similarity
+from .diagnostics import stub_similarity
 from .mesh import Mesh
 
 
@@ -45,7 +45,7 @@ class Gate(Protocol):
 
 class StandInGate:
     def __init__(self, thresholds: GateThresholds = GateThresholds(),
-                 similarity: Callable[[Mesh, dict], float | None] = dsm_proxy_similarity):
+                 similarity: Callable[[Mesh, dict], float | None] = stub_similarity):
         self.thresholds, self.similarity = thresholds, similarity
 
     def evaluate(self, mesh: Mesh, building: dict) -> GateReport:

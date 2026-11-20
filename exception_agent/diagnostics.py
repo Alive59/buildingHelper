@@ -1,23 +1,28 @@
-"""Read-only measurements of a mesh against the input data (DSM, footprint).
+"""Read-only measurements of a mesh against optional input data (DSM, footprint).
 
-These are hints for the LLM, not gate conditions: the DSM is input data, not
-ground truth, and the gate only checks topology and BRICE. A bare similarity
-score says a model is wrong but not in which direction; the hints do.
+These are hints for the LLM, not gate conditions. The gate only checks topology
+and BRICE, and many areas have no 3D reference at all: without `dsm_samples`
+the only hint left is the footprint one.
 """
 import math
 
 from .mesh import Mesh
 
 
-def height_errors(mesh: Mesh, building: dict) -> list[float]:
-    """Mesh top minus DSM at each sample; uncovered samples compare against the ground."""
+def height_errors(mesh: Mesh, building: dict, key: str = "dsm_samples") -> list[float]:
+    """Mesh top minus reference at each sample; uncovered samples compare against the ground."""
     ground = building["ground_z"]
-    return [(mesh.top_z_at(x, y) or ground) - z for x, y, z in building.get("dsm_samples") or []]
+    return [(mesh.top_z_at(x, y) or ground) - z for x, y, z in building.get(key) or []]
 
 
-def dsm_proxy_similarity(mesh: Mesh, building: dict) -> float | None:
-    """Placeholder for BRICE so the loop can run. NOT BRICE: 1 / (1 + height RMSE vs DSM)."""
-    errs = height_errors(mesh, building)
+def stub_similarity(mesh: Mesh, building: dict) -> float | None:
+    """Placeholder for BRICE so the loop can run. NOT BRICE.
+
+    BRICE scores the mesh against the roof image. This scores it against
+    `_stub_reference`, a hidden height field in the demo queue entries that the
+    LLM never sees: 1 / (1 + height RMSE).
+    """
+    errs = height_errors(mesh, building, "_stub_reference")
     if not errs:
         return None
     return round(1.0 / (1.0 + math.sqrt(sum(e * e for e in errs) / len(errs))), 3)
