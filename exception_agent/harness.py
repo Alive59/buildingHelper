@@ -12,6 +12,7 @@ from .gate import Gate, failure_reasons
 from .llm import LLMClient, LLMError
 from .mesh import Mesh
 from .prompt import system_prompt, user_prompt
+from .render import render_top_down
 
 REQUIRED_KEYS = ("id", "footprint", "ground_z")
 
@@ -30,6 +31,7 @@ class Harness:
         for path in sorted(Path(queue_dir).glob("*.json")):
             try:
                 building = json.loads(path.read_text())
+                building["_queue_dir"] = str(path.parent)  # relative refs resolve from here
             except (OSError, json.JSONDecodeError) as e:
                 building = {"id": path.stem, "_load_error": str(e)}
             outcomes.append(self.run_building(building))
@@ -68,6 +70,7 @@ class Harness:
         digest: list[str] = []
         last_spec = None
         prev_score, best = None, None  # best = (score, step, mesh_path)
+        roof_image, last_render = self._roof_image(building), None
         deadline = start + self.budget.max_minutes * 60
         step = 0
         stop = "step budget exhausted"
@@ -78,15 +81,22 @@ class Harness:
             step += 1
             t0 = time.monotonic()
             log = {"step": step, "action": None, "error": None, "mesh_path": None, "gate": None}
+            images = []
+            if roof_image:
+                images.append(("Roof image (north up):", roof_image))
+            if last_render:
+                images.append(("Top-down render of your last build (north up, lighter = higher):",
+                               last_render))
             messages = [
                 {"role": "system", "content": self.system},
                 {"role": "user", "content": user_prompt(
                     building, prior, self._history(digest), self.budget.max_steps - step + 1,
-                    [p["name"] for p in last_spec["parts"]] if last_spec else None)},
+                    [p["name"] for p in last_spec["parts"]] if last_spec else None,
+                    [label.rstrip(":") for label, _ in images])},
             ]
-            log["prompt"] = messages
+            log["prompt"], log["images"] = messages, images  # paths only; pixels are not logged
             try:
-                raw = self.llm.complete(messages, ACTION_SCHEMA, bid, deadline - time.monotonic())
+                raw = self.llm.complete(messages, ACTION_SCHEMA, bid, deadline - time.monotonic(), images)
             except LLMError as e:
                 log["error"] = f"LLM endpoint failed: {e}"
                 self._log(bdir, log, t0)
@@ -114,6 +124,8 @@ class Harness:
             last_spec = spec
             mesh_path = bdir / f"step_{step:02d}.obj"
             mesh.write_obj(mesh_path)
+            last_render = str(mesh_path.with_suffix(".png"))
+            render_top_down(mesh, Path(last_render))
             report = self.gate.evaluate(mesh, building)
             step_hints = hints(mesh, building)
             log["mesh_path"], log["gate"], log["hints"] = str(mesh_path), report.to_dict(), step_hints
@@ -154,6 +166,14 @@ class Harness:
         if len(building["footprint"]) < 3:
             return "source footprint has fewer than 3 vertices"
         return None
+
+    @staticmethod
+    def _roof_image(building: dict) -> str | None:
+        ref = (building.get("refs") or {}).get("roof_image")
+        if not ref:
+            return None
+        path = Path(building.get("_queue_dir", ".")) / ref  # absolute refs stay absolute
+        return str(path) if path.is_file() else None
 
     def _prior_attempts(self, building: dict) -> tuple[list[str], list[str]]:
         """LLM-readable lines for the pipeline's earlier attempts, and their failed checks."""

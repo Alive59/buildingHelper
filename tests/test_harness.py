@@ -9,8 +9,9 @@ from exception_agent.config import Budget
 from exception_agent.diagnostics import hints
 from exception_agent.gate import Check, GateReport, StandInGate, failure_reasons
 from exception_agent.harness import Harness
-from exception_agent.llm import StubLLM
+from exception_agent.llm import OpenAICompatLLM, StubLLM
 from exception_agent.mesh import Mesh
+from exception_agent.render import render_top_down
 
 ROOT = Path(__file__).resolve().parent.parent
 RECT = [[0, 0], [12, 0], [12, 8], [0, 8]]
@@ -129,3 +130,40 @@ def test_gate_is_topology_plus_similarity_and_hints_give_direction():
     assert StandInGate().evaluate(truth, b).passed
     assert not StandInGate().evaluate(truth, {**b, "_stub_reference": []}).passed  # no score, no accept
     assert StandInGate(similarity=lambda m, bld: 0.9).evaluate(low, b).passed  # pluggable scorer
+
+
+def test_render_and_vision_request(tmp_path):
+    png = tmp_path / "r.png"
+    render_top_down(build({"parts": [part("gable")]}, RECT, 0.0), png)
+    assert png.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n" and png.stat().st_size > 300
+    msgs = [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}]
+    llm = OpenAICompatLLM("http://x/v1", "m", extra_body={"enable_thinking": False})
+    body = llm.build_body(msgs, {"type": "object"}, [("Roof image:", str(png))])
+    parts = body["messages"][1]["content"]
+    assert [p["type"] for p in parts] == ["text", "text", "image_url"]
+    assert parts[2]["image_url"]["url"].startswith("data:image/png;base64,")
+    assert body["enable_thinking"] is False and body["response_format"]["type"] == "json_schema"
+    assert msgs[1]["content"] == "u"  # caller's messages untouched
+    assert OpenAICompatLLM("http://x/v1", "m", vision=False).build_body(msgs, {}, [("l", str(png))])["messages"] == msgs
+
+
+def test_roof_image_render_and_height_reach_the_llm(tmp_path):
+    seen = []
+
+    class Spy(StubLLM):
+        def complete(self, messages, schema, building_id, timeout_s, images=()):
+            seen.append((messages[1]["content"], list(images)))
+            return super().complete(messages, schema, building_id, timeout_s)
+
+    (tmp_path / "q").mkdir()
+    render_top_down(build({"parts": [part("flat")]}, RECT, 0.0), tmp_path / "q/roof.png")
+    b = {"id": "X", "footprint": RECT, "ground_z": 0.0, "height_m": 12.0, "height_source": "lod1",
+         "refs": {"roof_image": "roof.png"}}
+    (tmp_path / "q/X.json").write_text(json.dumps(b))
+    flat = json.loads(action())
+    Harness(Spy({"X": [flat, flat]}), StandInGate(), tmp_path / "out", Budget(max_steps=2)).run_queue(tmp_path / "q")
+    (text1, img1), (text2, img2) = seen
+    assert "Building height: 12 m above ground (source: lod1)" in text1
+    assert [Path(p).name for _, p in img1] == ["roof.png"]
+    assert [Path(p).name for _, p in img2] == ["roof.png", "step_01.png"]
+    assert "mean roof height of your model is 5.0 m; the given building height is 12 m (lod1)" in text2

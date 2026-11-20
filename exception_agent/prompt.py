@@ -32,13 +32,15 @@ def dsm_summary(building: dict, max_points: int = 16) -> str:
 
 
 def user_prompt(building: dict, prior: list[str], history: str, steps_left: int,
-                last_parts: list[str] | None) -> str:
-    refs = building.get("refs") or {}
+                last_parts: list[str] | None, attached: list[str] = ()) -> str:
+    height = building.get("height_m")
     lines = [
         f"Building: {building['id']}",
         f"Footprint: {json.dumps(building['footprint'])}",
         f"DSM: {dsm_summary(building)}",
-        "Source files: " + (", ".join(f"{k}={v}" for k, v in refs.items()) or "none"),
+        (f"Building height: {height:g} m above ground (source: {building.get('height_source', 'unknown')})"
+         if height is not None else "Building height: not given"),
+        "Images attached below: " + ("; ".join(attached) or "none (roof image not available to you)"),
         "",
         "Earlier pipeline attempts:",
         *(prior or ["- none recorded"]),

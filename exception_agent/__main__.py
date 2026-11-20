@@ -18,6 +18,9 @@ def main() -> None:
     p.add_argument("--model", default="local")
     p.add_argument("--api-key", default="none")
     p.add_argument("--json-mode", choices=["schema", "object", "none"], default="schema")
+    p.add_argument("--no-vision", action="store_true", help="do not send images to the LLM")
+    p.add_argument("--extra-body", type=json.loads, default={},
+                   help="JSON merged into each request, e.g. a server switch for thinking mode")
     p.add_argument("--steps", type=int, default=Budget.max_steps)
     p.add_argument("--minutes", type=float, default=Budget.max_minutes)
     a = p.parse_args()
@@ -25,7 +28,8 @@ def main() -> None:
     if a.llm == "stub":
         llm = StubLLM(json.loads(a.stub_script.read_text()) if a.stub_script else {})
     else:
-        llm = OpenAICompatLLM(a.base_url, a.model, a.api_key, a.json_mode)
+        llm = OpenAICompatLLM(a.base_url, a.model, a.api_key, a.json_mode,
+                              vision=not a.no_vision, extra_body=a.extra_body)
     harness = Harness(llm, StandInGate(), a.out, Budget(a.steps, a.minutes))
     print(json.dumps(harness.run_queue(a.queue), indent=2))
 

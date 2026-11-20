@@ -19,7 +19,7 @@ python -m exception_agent --queue examples/queue --out runs/llm --llm openai --b
 python -m pytest -q
 ```
 
-Requires Python 3.11+ and `jsonschema`. Use `--json-mode object|none` if the
+Requires Python 3.11+, `jsonschema` and `numpy`. Use `--json-mode object|none` if the
 server does not support JSON-schema output; the harness validates either way.
 
 ## Layout
@@ -32,18 +32,20 @@ server does not support JSON-schema output; the harness validates either way.
 | `gate.py` | gate interface (topology + BRICE), stand-in gate, failure-reason formatter |
 | `diagnostics.py` | placeholder scorer; optional DSM and footprint hints (not gate conditions) |
 | `prompt.py`, `guidance.md` | per-step prompt; edit `guidance.md` for the guidance |
-| `llm.py` | stub LLM and OpenAI-compatible client |
+| `llm.py` | stub LLM and OpenAI-compatible client (text + images) |
+| `render.py` | top-down render of each build, sent back to the LLM |
 | `config.py` | thresholds, budget, limits (frozen) |
 
 ## Input and output
 
 Queue entry (`examples/queue/*.json`): `id`, `footprint` ([[x, y], …] in metres),
-`ground_z`, `refs` (roof image path, passed as text), optional `dsm_samples`
+`ground_z`, `height_m` and `height_source` (prediction or LoD1),
+`refs.roof_image` (path, relative to the queue directory), optional `dsm_samples`
 ([[x, y, z], …], only where a 3D reference exists),
 `attempts` (per route: `reasons`, `failed_checks`, or a `mesh_path` to re-gate).
 
 Run directory: `<id>/steps.jsonl` (prompt, raw output, parsed action, mesh path,
-gate report, hints, seconds), `<id>/step_NN.obj`, `<id>/outcome.json`, `results.jsonl`,
+gate report, hints, seconds), `<id>/step_NN.obj` and `.png`, `<id>/outcome.json`, `results.jsonl`,
 `summary.json` (rescue rate, steps, rescue by prior failure type).
 
 Outcomes: `accepted`; `human_review` (`stopped_by` = `give_up` or `budget`);

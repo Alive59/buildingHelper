@@ -10,9 +10,11 @@ Each turn you choose exactly one action and answer with one JSON object, nothing
 
 ## Input data
 - Footprint: polygon vertices [x, y] in metres, local coordinates.
-- Roof image: a file reference only; you cannot see it. BRICE is computed from it.
+- Roof image: attached when available, north up. BRICE is computed from it.
+- Render: a top-down view of your last build, north up. Compare it with the roof image:
+  ridge direction, number of roof planes, parts at different heights.
+- Building height: from a prediction or from LoD1 data. Keep the mean roof height close to it.
 - DSM: usually not available. When it is, you get roof height statistics and sample points.
-<!-- TBD (LIAO): default wall and roof heights when there is no 3D reference -->
 
 ## Correction policy
 <!-- TBD (LIAO): per-failure-type correction policy -->
