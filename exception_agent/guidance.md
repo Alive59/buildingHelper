@@ -13,8 +13,9 @@ Each turn you choose exactly one action and answer with one JSON object, nothing
 - Roof image: attached when available, north up. BRICE is computed from it.
 - Render: a top-down view of your last build, north up. Compare it with the roof image:
   ridge direction, number of roof planes, parts at different heights.
-- Building height: from a prediction or from LoD1 data. Keep the mean roof height close to it.
-- DSM: usually not available. When it is, you get roof height statistics and sample points.
+- Building height: from a prediction or from LoD1 data. It is the top of the building: keep your highest point close to it.
+- Height map: a predicted nDSM when available, as statistics, a coarse grid of heights and
+  an image. It is a prediction, not ground truth, but it shows which parts are high or low.
 
 ## Correction policy
 <!-- TBD (LIAO): per-failure-type correction policy -->

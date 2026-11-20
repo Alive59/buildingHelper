@@ -57,14 +57,14 @@ queue = [
         {"route": "AR", "reasons": ["not watertight: 7 open boundary edges (e.g. faces 3, 9)"],
          "failed_checks": ["watertight"]},
         {"route": "rule", "reasons": ["BRICE 0.28 < 0.50 (similarity too low)"], "failed_checks": ["brice"]},
-        {"route": "LoD1", "reasons": ["BRICE 0.37 < 0.50 (similarity too low)"], "failed_checks": ["brice"]}], 8.5, "lod1"),
+        {"route": "LoD1", "reasons": ["BRICE 0.37 < 0.50 (similarity too low)"], "failed_checks": ["brice"]}], 11.0, "lod1"),
     # L-shaped building whose wings differ by 6 m: single-part builds never pass.
     building("B002", lshape, 5.0,
              dsm([part("a", 4.0, "flat", footprint=[[0, 0], [10, 0], [10, 6], [0, 6]]),
                   part("b", 10.0, "flat", footprint=[[0, 6], [4, 6], [4, 12], [0, 12]])], lshape, 5.0), [
         {"route": "AR", "reasons": ["312 faces > 256"], "failed_checks": ["faces"]},
         {"route": "rule", "note": "plane fitting found no roof planes"},
-        {"route": "LoD1", "reasons": ["BRICE 0.26 < 0.50 (similarity too low)"], "failed_checks": ["brice"]}], 5.7, "prediction"),
+        {"route": "LoD1", "reasons": ["BRICE 0.26 < 0.50 (similarity too low)"], "failed_checks": ["brice"]}], 10.0, "prediction"),
     # Nothing fits (e.g. roof hidden by trees in the image): the score never moves, so give up.
     building("B003", big, 0.0, [[x + 0.5, y + 0.5, round(random.uniform(2, 18), 2)]
                                 for x in range(0, 20, 2) for y in range(0, 15, 2)], [

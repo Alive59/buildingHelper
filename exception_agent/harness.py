@@ -70,7 +70,7 @@ class Harness:
         digest: list[str] = []
         last_spec = None
         prev_score, best = None, None  # best = (score, step, mesh_path)
-        roof_image, last_render = self._roof_image(building), None
+        ref_images, last_render = self._ref_images(building), None
         deadline = start + self.budget.max_minutes * 60
         step = 0
         stop = "step budget exhausted"
@@ -81,9 +81,7 @@ class Harness:
             step += 1
             t0 = time.monotonic()
             log = {"step": step, "action": None, "error": None, "mesh_path": None, "gate": None}
-            images = []
-            if roof_image:
-                images.append(("Roof image (north up):", roof_image))
+            images = list(ref_images)
             if last_render:
                 images.append(("Top-down render of your last build (north up, lighter = higher):",
                                last_render))
@@ -168,20 +166,25 @@ class Harness:
         return None
 
     @staticmethod
-    def _roof_image(building: dict) -> str | None:
-        ref = (building.get("refs") or {}).get("roof_image")
-        if not ref:
-            return None
-        path = Path(building.get("_queue_dir", ".")) / ref  # absolute refs stay absolute
-        return str(path) if path.is_file() else None
+    def _ref_images(building: dict) -> list[tuple[str, str]]:
+        """Input images for the vision LLM; relative refs resolve from the queue directory."""
+        out = []
+        for key, label in (("roof_image", "Roof image (north up, cropped to the footprint):"),
+                           ("height_map_image", "Predicted height map (north up, lighter = higher):")):
+            ref = (building.get("refs") or {}).get(key)
+            path = Path(building.get("_queue_dir", ".")) / ref if ref else None
+            if path and path.is_file():
+                out.append((label, str(path)))
+        return out
 
     def _prior_attempts(self, building: dict) -> tuple[list[str], list[str]]:
         """LLM-readable lines for the pipeline's earlier attempts, and their failed checks."""
         lines, types = [], Counter()
         for att in building.get("attempts") or []:
             reasons = att.get("reasons")
-            if reasons is None and att.get("mesh_path") and Path(att["mesh_path"]).exists():
-                mesh = Mesh.read_obj(att["mesh_path"])
+            mesh_path = Path(building.get("_queue_dir", ".")) / att["mesh_path"] if att.get("mesh_path") else None
+            if reasons is None and mesh_path and mesh_path.exists():
+                mesh = Mesh.read_obj(mesh_path)
                 report = self.gate.evaluate(mesh, building)
                 reasons = failure_reasons(report) + [_hint_text(hints(mesh, building)).strip(" |")]
                 types.update(c.name for c in report.failed)

@@ -164,6 +164,7 @@ def test_roof_image_render_and_height_reach_the_llm(tmp_path):
     Harness(Spy({"X": [flat, flat]}), StandInGate(), tmp_path / "out", Budget(max_steps=2)).run_queue(tmp_path / "q")
     (text1, img1), (text2, img2) = seen
     assert "Building height: 12 m above ground (source: lod1)" in text1
+    assert "Footprint bounding box: x 0.0 to 12.0, y 0.0 to 8.0" in text1
     assert [Path(p).name for _, p in img1] == ["roof.png"]
     assert [Path(p).name for _, p in img2] == ["roof.png", "step_01.png"]
-    assert "mean roof height of your model is 5.0 m; the given building height is 12 m (lod1)" in text2
+    assert "top of your model is 5.0 m above ground; the given building height is 12 m (lod1)" in text2

@@ -22,6 +22,19 @@ python -m pytest -q
 Requires Python 3.11+, `jsonschema` and `numpy`. Use `--json-mode object|none` if the
 server does not support JSON-schema output; the harness validates either way.
 
+## Real cases
+
+```bash
+python -m exception_agent.import_cases <cases_dir> data/queue12
+```
+
+Converts gen-model case folders (`meta.json`, `footprint.geojson`, `crop_model.png`,
+`ndsm_pred.npy`, `ship_gen.obj`, `gt_lod2.obj`) into queue entries: footprint in a
+local metric frame, the roof crop and predicted height map as images, the height
+map as text hints, and the failed generation as the prior attempt, which the
+harness re-gates. GT feeds only the placeholder scorer. `data/` is git-ignored.
+Needs `numpy`.
+
 ## Layout
 
 | file | role |
@@ -34,6 +47,7 @@ server does not support JSON-schema output; the harness validates either way.
 | `prompt.py`, `guidance.md` | per-step prompt; edit `guidance.md` for the guidance |
 | `llm.py` | stub LLM and OpenAI-compatible client (text + images) |
 | `render.py` | top-down render of each build, sent back to the LLM |
+| `import_cases.py` | case folders → queue entries |
 | `config.py` | thresholds, budget, limits (frozen) |
 
 ## Input and output

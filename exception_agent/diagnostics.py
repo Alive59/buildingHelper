@@ -35,27 +35,21 @@ def hints(mesh: Mesh, building: dict) -> list[str]:
         samples = building["dsm_samples"]
         mean = sum(errs) / len(errs)
         rmse = math.sqrt(sum(e * e for e in errs) / len(errs))
+        ref = building.get("dsm_label", "DSM")
         if rmse < 0.3:
-            out.append(f"roof heights agree with DSM (RMSE {rmse:.1f} m)")
+            out.append(f"roof heights agree with {ref} (RMSE {rmse:.1f} m)")
         else:
             w = max(range(len(errs)), key=lambda i: abs(errs[i]))
             side = "higher" if mean > 0 else "lower"
-            out.append(f"roof is {abs(mean):.1f} m {side} than DSM on average (RMSE {rmse:.1f} m); "
+            out.append(f"roof is {abs(mean):.1f} m {side} than {ref} on average (RMSE {rmse:.1f} m); "
                        f"worst {errs[w]:+.1f} m at ({samples[w][0]:.1f}, {samples[w][1]:.1f})")
     given = building.get("height_m")
-    if given is not None:
-        fp = building["footprint"]
-        xs, ys = [p[0] for p in fp], [p[1] for p in fp]
-        n = 15
-        tops = [mesh.top_z_at(min(xs) + (i + 0.5) * (max(xs) - min(xs)) / n,
-                              min(ys) + (j + 0.5) * (max(ys) - min(ys)) / n)
-                for i in range(n) for j in range(n)]
-        tops = [t - building["ground_z"] for t in tops if t is not None]
-        if tops:
-            mean = sum(tops) / len(tops)
-            if abs(mean - given) > max(1.0, 0.15 * given):
-                out.append(f"mean roof height of your model is {mean:.1f} m; the given building height "
-                           f"is {given:g} m ({building.get('height_source', 'unknown')})")
+    if given is not None and mesh.vertices:
+        # In the reference cases height_m is the top of the building, not the mean roof height.
+        top = max(z for _, _, z in mesh.vertices) - building["ground_z"]
+        if abs(top - given) > max(1.0, 0.15 * given):
+            out.append(f"top of your model is {top:.1f} m above ground; the given building height "
+                       f"is {given:g} m ({building.get('height_source', 'unknown')})")
     worst, at = 0.0, None
     for x, y in building["footprint"]:
         d = min((math.hypot(vx - x, vy - y) for vx, vy, _ in mesh.vertices), default=math.inf)
