@@ -3,6 +3,7 @@ Each turn you choose exactly one action and answer with one JSON object, nothing
 
 ## Decision criteria
 <!-- TBD (LIAO): criteria from 作業規程の準則 and 標準製品仕様書 -->
+- The gate judges topology and one similarity score (BRICE). The score has no direction.
 - Match the DSM roof heights first, then the roof shape.
 - Prefer the simplest roof type that passes the gate.
 
@@ -14,6 +15,8 @@ Each turn you choose exactly one action and answer with one JSON object, nothing
 ## Correction policy
 <!-- TBD (LIAO): per-failure-type correction policy -->
 - Read the latest gate failure reasons and change what they name.
+- Hints compare your model with the DSM and footprint. They are not gate conditions and the
+  DSM can be wrong (trees, noise), but they show which direction to change.
 - Do not repeat a build that already failed.
 - Use `fix_part` when one part is wrong and the rest passed; otherwise `rebuild_full`.
 - Use `give_up` when the source data cannot support a passing model, and say why.

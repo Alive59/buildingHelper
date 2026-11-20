@@ -6,6 +6,7 @@ import pytest
 from exception_agent.actions import RejectedOutput, parse_action
 from exception_agent.builder import BuildError, build
 from exception_agent.config import Budget
+from exception_agent.diagnostics import hints
 from exception_agent.gate import Check, GateReport, StandInGate, failure_reasons
 from exception_agent.harness import Harness
 from exception_agent.llm import StubLLM
@@ -33,7 +34,7 @@ def test_builder_makes_closed_manifold_solids(kind, fp):
     mesh = build({"parts": [part(kind)]}, fp, 0.0)
     checks = {c.name: c for c in StandInGate().evaluate(mesh, {"footprint": fp, "ground_z": 0.0}).checks}
     assert checks["watertight"].passed and checks["manifold"].passed
-    assert checks["footprint_vertex"].passed
+    assert not hints(mesh, {"footprint": fp, "ground_z": 0.0})
 
 
 def test_gable_ridge_follows_axis():
@@ -60,12 +61,12 @@ def test_gate_reports_open_and_oversized_meshes():
 def test_formatter_wording():
     report = GateReport(False, [
         Check("faces", False, 312, 256),
-        Check("roof_height", False, 4.3, 1.0, {"mean_error_m": -4.2}),
+        Check("brice", False, 0.41, 0.5), Check("brice", False, None, 0.5),
         Check("manifold", False, 1, 0, {"non_manifold_edges": 1, "faces": [12, 13, 14]}),
-        Check("new_check", False, 0.4, 0.6), Check("bmqi", None)])
+        Check("new_check", False, 0.4, 0.6)])
     assert failure_reasons(report) == [
         "312 faces > 256",
-        "roof height off by 4.2 m vs DSM (mesh too low on average), RMSE 4.3 m > 1.0 m",
+        "BRICE 0.41 < 0.50 (similarity too low)", "BRICE could not be evaluated",
         "not manifold: 1 non-manifold edges (e.g. faces 12, 13, 14)",
         "new_check failed: 0.4 vs threshold 0.6"]
 
@@ -108,3 +109,17 @@ def test_history_digest_is_capped(tmp_path):
     h = Harness(StubLLM({}), StandInGate(), tmp_path)
     text = h._history([f"- step {i}: " + "x" * 400 for i in range(1, 9)])
     assert len(text) < 1700 and "earlier steps omitted" in text and "step 8" in text
+
+
+def test_gate_is_topology_plus_similarity_and_hints_give_direction():
+    truth = build({"parts": [part("flat", eave=9.0)]}, RECT, 0.0)
+    b = {"id": "X", "footprint": RECT, "ground_z": 0.0,
+         "dsm_samples": [[x + 0.5, y + 0.5, 9.0] for x in range(12) for y in range(8)]}
+    low = build({"parts": [part("flat", eave=5.0)]}, RECT, 0.0)
+    report = StandInGate().evaluate(low, b)
+    assert [c.name for c in report.checks] == ["faces", "watertight", "manifold", "brice"]
+    assert failure_reasons(report) == ["BRICE 0.20 < 0.50 (similarity too low)"]
+    assert hints(low, b)[0].startswith("roof is 4.0 m lower than DSM on average")
+    assert StandInGate().evaluate(truth, b).passed
+    assert not StandInGate().evaluate(truth, {**b, "dsm_samples": []}).passed  # no score, no accept
+    assert StandInGate(similarity=lambda m, bld: 0.9).evaluate(low, b).passed  # pluggable scorer

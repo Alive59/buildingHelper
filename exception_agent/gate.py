@@ -2,22 +2,23 @@
 
 The real gate lives in the bulk pipeline and must be reused unchanged: wrap it in
 a class with the same `evaluate` signature that returns Check records, and the
-formatter and harness work as they are. StandInGate exists only so the loop can
-run end to end before that adapter is written.
+formatter and harness work as they are. The gate checks topology and one
+similarity score (BRICE); there is no geometric check against ground truth.
+StandInGate's topology checks are real; its similarity score is a placeholder.
 """
-import math
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
-from typing import Protocol
+from typing import Callable, Protocol
 
 from .config import GateThresholds
+from .diagnostics import dsm_proxy_similarity
 from .mesh import Mesh
 
 
 @dataclass
 class Check:
     name: str
-    passed: bool | None  # None = not evaluated
+    passed: bool
     value: float | None = None
     threshold: float | None = None
     data: dict = field(default_factory=dict)
@@ -30,7 +31,7 @@ class GateReport:
 
     @property
     def failed(self) -> list[Check]:
-        return [c for c in self.checks if c.passed is False]
+        return [c for c in self.checks if not c.passed]
 
     def to_dict(self) -> dict:
         return {"passed": self.passed, "checks": [asdict(c) for c in self.checks]}
@@ -43,17 +44,18 @@ class Gate(Protocol):
 
 
 class StandInGate:
-    def __init__(self, thresholds: GateThresholds = GateThresholds()):
-        self.thresholds = thresholds
+    def __init__(self, thresholds: GateThresholds = GateThresholds(),
+                 similarity: Callable[[Mesh, dict], float | None] = dsm_proxy_similarity):
+        self.thresholds, self.similarity = thresholds, similarity
 
     def evaluate(self, mesh: Mesh, building: dict) -> GateReport:
         th = self.thresholds
         checks = [Check("faces", len(mesh.faces) <= th.max_faces, len(mesh.faces), th.max_faces)]
         checks += self._topology(mesh)
-        checks.append(self._roof_height(mesh, building))
-        checks.append(self._footprint(mesh, building))
-        checks.append(Check("bmqi", None, threshold=th.bmqi_min))
-        return GateReport(all(c.passed is not False for c in checks), checks)
+        score = self.similarity(mesh, building)
+        # An unevaluated score fails: nothing is accepted on topology alone.
+        checks.append(Check("brice", score is not None and score >= th.brice_min, score, th.brice_min))
+        return GateReport(all(c.passed for c in checks), checks)
 
     @staticmethod
     def _topology(mesh: Mesh) -> list[Check]:
@@ -79,48 +81,12 @@ class StandInGate:
                    "inconsistent_edges": flipped, "faces": bad[:6]}),
         ]
 
-    def _roof_height(self, mesh: Mesh, building: dict) -> Check:
-        samples = building.get("dsm_samples") or []
-        if not samples:
-            return Check("roof_height", None, threshold=self.thresholds.roof_height_rmse_m)
-        ground = building["ground_z"]
-        # Where the mesh does not cover a DSM roof sample, its height is the ground.
-        errs = [(mesh.top_z_at(x, y) or ground) - z for x, y, z in samples]
-        rmse = math.sqrt(sum(e * e for e in errs) / len(errs))
-        worst = max(range(len(errs)), key=lambda i: abs(errs[i]))
-        return Check("roof_height", rmse <= self.thresholds.roof_height_rmse_m, round(rmse, 2),
-                     self.thresholds.roof_height_rmse_m,
-                     {"mean_error_m": round(sum(errs) / len(errs), 2),
-                      "worst_error_m": round(errs[worst], 2),
-                      "worst_at": [round(v, 1) for v in samples[worst][:2]]})
-
-    def _footprint(self, mesh: Mesh, building: dict) -> Check:
-        fp = building["footprint"]
-        worst, at = 0.0, None
-        for x, y in fp:
-            d = min((math.hypot(vx - x, vy - y) for vx, vy, _ in mesh.vertices), default=math.inf)
-            if d > worst:
-                worst, at = d, [x, y]
-        return Check("footprint_vertex", worst <= self.thresholds.footprint_vertex_err_m,
-                     round(worst, 2), self.thresholds.footprint_vertex_err_m, {"at": at})
-
 
 # --- Milestone 1: gate report -> short failure reasons for the LLM ---------------
 
 def _faces(c: Check) -> str:
     faces = c.data.get("faces") or []
     return f" (e.g. faces {', '.join(map(str, faces))})" if faces else ""
-
-
-def _roof_reason(c: Check) -> str:
-    mean = c.data.get("mean_error_m", 0.0)
-    side = "too high" if mean > 0 else "too low"
-    msg = (f"roof height off by {abs(mean):.1f} m vs DSM (mesh {side} on average), "
-           f"RMSE {c.value:.1f} m > {c.threshold:.1f} m")
-    if "worst_at" in c.data:
-        x, y = c.data["worst_at"]
-        msg += f"; worst {c.data['worst_error_m']:+.1f} m at ({x}, {y})"
-    return msg
 
 
 def _manifold_reason(c: Check) -> str:
@@ -135,11 +101,8 @@ _REASONS = {
     "faces": lambda c: f"{c.value:.0f} faces > {c.threshold:.0f}",
     "watertight": lambda c: f"not watertight: {c.value:.0f} open boundary edges{_faces(c)}",
     "manifold": _manifold_reason,
-    "roof_height": _roof_reason,
-    "footprint_vertex": lambda c: (
-        f"footprint vertex off by {c.value:.1f} m > {c.threshold:.1f} m"
-        + (f" at ({c.data['at'][0]}, {c.data['at'][1]})" if c.data.get("at") else "")),
-    "bmqi": lambda c: f"BMQI {c.value:.2f} < {c.threshold:.2f}",
+    "brice": lambda c: ("BRICE could not be evaluated" if c.value is None
+                        else f"BRICE {c.value:.2f} < {c.threshold:.2f} (similarity too low)"),
 }
 
 
@@ -153,10 +116,6 @@ def failure_reasons(report: GateReport) -> list[str]:
 
 
 def pass_conditions(th: GateThresholds) -> list[str]:
-    lines = ["watertight (no open boundary edges)", "manifold (every edge shared by exactly 2 faces)",
-             f"at most {th.max_faces} triangle faces",
-             f"roof height RMSE vs DSM <= {th.roof_height_rmse_m} m",
-             f"every footprint vertex matched within {th.footprint_vertex_err_m} m"]
-    if th.bmqi_min is not None:
-        lines.append(f"BMQI >= {th.bmqi_min}")
-    return lines
+    return ["watertight (no open boundary edges)", "manifold (every edge shared by exactly 2 faces)",
+            f"at most {th.max_faces} triangle faces",
+            f"BRICE similarity score >= {th.brice_min}"]

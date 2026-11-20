@@ -7,6 +7,7 @@ from pathlib import Path
 from .actions import ACTION_SCHEMA, RejectedOutput, apply_fix, parse_action
 from .builder import BuildError, build
 from .config import Budget, Limits
+from .diagnostics import hints
 from .gate import Gate, failure_reasons
 from .llm import LLMClient, LLMError
 from .mesh import Mesh
@@ -113,13 +114,14 @@ class Harness:
             mesh_path = bdir / f"step_{step:02d}.obj"
             mesh.write_obj(mesh_path)
             report = self.gate.evaluate(mesh, building)
-            log["mesh_path"], log["gate"] = str(mesh_path), report.to_dict()
+            step_hints = hints(mesh, building)
+            log["mesh_path"], log["gate"], log["hints"] = str(mesh_path), report.to_dict(), step_hints
             self._log(bdir, log, t0)
             if report.passed:
                 return finish("accepted", step, mesh_path=str(mesh_path))
             what = label + (f"({action['target']})" if label == "fix_part" else "")
             digest.append(f"- step {step}: {what} [{_brief(spec)}] -> FAIL: "
-                          + "; ".join(failure_reasons(report)))
+                          + "; ".join(failure_reasons(report)) + _hint_text(step_hints))
 
         summary = (f"{stop} after {step} steps. Initial failures: "
                    f"{', '.join(failure_types) or 'not recorded'}. Agent steps:\n"
@@ -147,11 +149,12 @@ class Harness:
         for att in building.get("attempts") or []:
             reasons = att.get("reasons")
             if reasons is None and att.get("mesh_path") and Path(att["mesh_path"]).exists():
-                report = self.gate.evaluate(Mesh.read_obj(att["mesh_path"]), building)
-                reasons = failure_reasons(report)
+                mesh = Mesh.read_obj(att["mesh_path"])
+                report = self.gate.evaluate(mesh, building)
+                reasons = failure_reasons(report) + [_hint_text(hints(mesh, building)).strip(" |")]
                 types.update(c.name for c in report.failed)
             types.update(att.get("failed_checks") or [])
-            lines.append(f"- {att.get('route', '?')}: " + ("; ".join(reasons) if reasons
+            lines.append(f"- {att.get('route', '?')}: " + ("; ".join(r for r in reasons if r) if reasons
                          else att.get("note") or "failed, no gate report"))
         return lines, sorted(types)
 
@@ -172,6 +175,10 @@ class Harness:
         log["seconds"] = round(time.monotonic() - t0, 3)
         with open(bdir / "steps.jsonl", "a") as f:
             f.write(json.dumps(log, ensure_ascii=False) + "\n")
+
+
+def _hint_text(step_hints: list[str]) -> str:
+    return " | hints: " + "; ".join(step_hints) if step_hints else ""
 
 
 def _brief(spec: dict) -> str:

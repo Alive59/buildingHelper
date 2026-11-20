@@ -4,11 +4,8 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class GateThresholds:
-    # Placeholder values: replace with the bulk pipeline's real thresholds.
     max_faces: int = 256
-    roof_height_rmse_m: float = 1.0
-    footprint_vertex_err_m: float = 0.5
-    bmqi_min: float | None = None  # None = not evaluated by the stand-in gate
+    brice_min: float = 0.5  # placeholder: replace with the pipeline's BRICE threshold
 
 
 @dataclass(frozen=True)
